@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  advanceToArtifact,
   applyChoice,
+  applyArtifactChoice,
+  advanceStage,
   createInitialState,
   determineOutcome,
   restoreState,
@@ -22,6 +25,17 @@ test("the simulation contains 18 complete stages with manager coaching", () => {
     assert.ok(stage.question);
     assert.ok(stage.hint);
     assert.equal(stage.options.length, 4);
+    assert.ok(stage.artifact.title);
+    assert.ok(stage.artifact.type);
+    assert.ok(stage.artifact.prompt.length >= 40);
+    assert.ok(stage.artifact.hint);
+    assert.equal(stage.artifact.options.length, 4);
+    assert.equal(
+      stage.artifact.options.filter((artifactOption) => artifactOption.correct).length,
+      1,
+    );
+    assert.ok(stage.artifact.model.title);
+    assert.ok(stage.artifact.model.sections.length >= 3);
 
     for (const option of stage.options) {
       assert.match(option.id, /^[ABCD]$/);
@@ -35,16 +49,28 @@ test("the simulation contains 18 complete stages with manager coaching", () => {
       assert.ok(Number.isInteger(option.chanceDelta));
       assert.ok(option.capabilityDeltas);
     }
+
+    for (const artifactOption of stage.artifact.options) {
+      assert.match(artifactOption.id, /^[ABCD]$/);
+      assert.ok(artifactOption.text);
+      assert.ok(artifactOption.feedback);
+      assert.ok(Number.isInteger(artifactOption.chanceDelta));
+      assert.ok(artifactOption.capabilityDeltas);
+    }
   }
 });
 
 test("a new run starts at stage one with neutral capability signals", () => {
   const state = createInitialState();
 
-  assert.equal(state.version, 1);
+  assert.equal(state.version, 2);
   assert.equal(state.currentStage, 1);
+  assert.equal(state.currentPart, "scenario");
   assert.equal(state.permanentChance, 50);
   assert.deepEqual(state.selectedAnswers, {});
+  assert.deepEqual(state.artifactAnswers, {});
+  assert.equal(state.artifactCorrect, 0);
+  assert.equal(state.artifactAttempts, 0);
   assert.deepEqual(state.hintsUsed, []);
   assert.deepEqual(state.severeFlags, []);
   assert.equal(state.completed, false);
@@ -73,6 +99,38 @@ test("applying a choice updates the run once and clamps all scores", () => {
 
   const duplicate = applyChoice(updated, 1, oversizedChoice);
   assert.deepEqual(duplicate, updated);
+});
+
+test("a stage requires its workplace decision before entering the artifact lab", () => {
+  const initial = createInitialState();
+  assert.deepEqual(advanceToArtifact(initial), initial);
+
+  const decided = applyChoice(initial, 1, STAGES[0].options[0]);
+  const artifactPart = advanceToArtifact(decided);
+  assert.equal(artifactPart.currentPart, "artifact");
+  assert.equal(artifactPart.currentStage, 1);
+});
+
+test("an artifact answer updates judgment once and is required to advance", () => {
+  const scenarioDone = advanceToArtifact(
+    applyChoice(createInitialState(), 1, STAGES[0].options[0]),
+  );
+  const correctChoice = STAGES[0].artifact.options.find((choice) => choice.correct);
+  const answered = applyArtifactChoice(scenarioDone, 1, correctChoice);
+
+  assert.equal(answered.artifactAnswers[1], correctChoice.id);
+  assert.equal(answered.artifactCorrect, 1);
+  assert.equal(answered.artifactAttempts, 1);
+
+  const duplicate = applyArtifactChoice(answered, 1, correctChoice);
+  assert.deepEqual(duplicate, answered);
+
+  const advanced = advanceStage(answered, STAGES.length);
+  assert.equal(advanced.currentStage, 2);
+  assert.equal(advanced.currentPart, "scenario");
+
+  const blocked = advanceStage(scenarioDone, STAGES.length);
+  assert.deepEqual(blocked, scenarioDone);
 });
 
 test("severe flags can be added and explicitly recovered", () => {
@@ -147,8 +205,12 @@ test("saved state restores only when its shape and version are valid", () => {
   const valid = {
     ...createInitialState(),
     currentStage: 7,
+    currentPart: "artifact",
     permanentChance: 61,
     selectedAnswers: { 1: "A" },
+    artifactAnswers: { 1: "B" },
+    artifactCorrect: 1,
+    artifactAttempts: 1,
   };
 
   assert.deepEqual(restoreState(JSON.stringify(valid)), valid);

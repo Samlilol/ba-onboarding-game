@@ -21,8 +21,15 @@ async function completeRun(page, optionIndex) {
     await page.getByText("What you did well", { exact: true }).waitFor();
     await page.getByText("How to improve", { exact: true }).waitFor();
     await page
+      .getByRole("button", { name: /Continue to artifact exercise/i })
+      .click();
+    await page.locator(".scenario__phase", { hasText: "Artifact lab" }).waitFor();
+    await page.locator(".artifact-option").nth(optionIndex).click();
+    await page.getByText("Artifact review", { exact: true }).waitFor();
+    await page.getByText("Model artifact", { exact: true }).waitFor();
+    await page
       .getByRole("button", {
-        name: stage === 18 ? /See final outcome/i : /^Continue/i,
+        name: stage === 18 ? /See final outcome/i : /Next stage/i,
       })
       .click();
   }
@@ -49,8 +56,16 @@ try {
     await strongPage.getByText("What you did well", { exact: true }).waitFor();
     await strongPage.getByText("How to improve", { exact: true }).waitFor();
     await strongPage
+      .getByRole("button", { name: /Continue to artifact exercise/i })
+      .click();
+    await strongPage.locator(".scenario__phase", { hasText: "Artifact lab" }).waitFor();
+    const correctArtifact = strongPage.locator(".artifact-option[data-correct='true']");
+    await correctArtifact.click();
+    await strongPage.getByText("Artifact review", { exact: true }).waitFor();
+    await strongPage.getByText("Model artifact", { exact: true }).waitFor();
+    await strongPage
       .getByRole("button", {
-        name: stage === 18 ? /See final outcome/i : /^Continue/i,
+        name: stage === 18 ? /See final outcome/i : /Next stage/i,
       })
       .click();
   }
@@ -59,6 +74,7 @@ try {
     await strongPage.locator(".outcome-stamp").innerText(),
     /Permanent offer/i,
   );
+  assert.match(await strongPage.locator(".artifact-score").innerText(), /18\/18/);
   await strongPage.getByRole("button", { name: /Review decisions/i }).click();
   assert.equal(await strongPage.locator(".review__list details").count(), 18);
   await strongPage.reload({ waitUntil: "networkidle" });

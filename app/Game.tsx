@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
+  advanceToArtifact,
   advanceStage,
+  applyArtifactChoice,
   applyChoice,
   createInitialState,
   determineOutcome,
@@ -11,7 +13,7 @@ import {
 } from "../lib/game-engine.js";
 import { PHASES, STAGES } from "../lib/stages.js";
 
-const STORAGE_KEY = "contract-to-core-v1";
+const STORAGE_KEY = "contract-to-core-v2";
 const STORAGE_EVENT = "contract-to-core-save";
 
 const CAPABILITY_META = {
@@ -115,17 +117,17 @@ function Intro({
         </div>
 
         <div className="intro__stats">
-          <span className="sr-only">18 workplace decisions</span>
+          <span className="sr-only">36 decisions across 18 workplace scenarios and 18 artifact labs</span>
+          <div>
+            <strong>36</strong>
+            <span>decisions</span>
+          </div>
           <div>
             <strong>18</strong>
-            <span>workplace decisions</span>
+            <span>artifact labs</span>
           </div>
           <div>
-            <strong>6</strong>
-            <span>capability signals</span>
-          </div>
-          <div>
-            <strong>25–40</strong>
+            <strong>40–60</strong>
             <span>minutes to complete</span>
           </div>
         </div>
@@ -230,7 +232,9 @@ function Sidebar({
                   {phase.title}
                 </p>
                 {phaseStages.map((stage) => {
-                  const isComplete = Boolean(state.selectedAnswers[stage.id]);
+                  const isComplete = Boolean(
+                    state.selectedAnswers[stage.id] && state.artifactAnswers[stage.id],
+                  );
                   const isCurrent = state.currentStage === stage.id && !state.completed;
                   const isLocked = stage.id > state.currentStage;
                   return (
@@ -320,15 +324,171 @@ function ManagerFeedback({
   );
 }
 
-function GameStage({
+function ArtifactLab({
+  stage,
   state,
   onSelect,
   onHint,
   onContinue,
   onOpenMenu,
 }: {
+  stage: (typeof STAGES)[number];
+  state: ReturnType<typeof createInitialState>;
+  onSelect: (option: (typeof STAGES)[number]["artifact"]["options"][number]) => void;
+  onHint: () => void;
+  onContinue: () => void;
+  onOpenMenu: () => void;
+}) {
+  const artifact = stage.artifact;
+  const selectedId = state.artifactAnswers[stage.id];
+  const selected = artifact.options.find((entry) => entry.id === selectedId);
+  const correct = artifact.options.find((entry) => entry.correct);
+  const hintKey = `artifact-${stage.id}`;
+  const hintShown = state.hintsUsed.includes(hintKey);
+
+  return (
+    <main className="game-main">
+      <header className="mobile-header">
+        <button className="icon-button" onClick={onOpenMenu} aria-label="Open stages">
+          ☰
+        </button>
+        <div>
+          <b>Stage {stage.id} of 18</b>
+          <span>Artifact lab</span>
+        </div>
+        <strong>{state.permanentChance}%</strong>
+      </header>
+
+      <div className="game-main__inner">
+        <div className="stage-meta">
+          <span>{stage.timeline}</span>
+          <b>Part 2 / 2 · Artifact judgment</b>
+        </div>
+
+        <section className="artifact-hero">
+          <p className="scenario__phase">Artifact lab</p>
+          <span className="artifact-hero__type">{artifact.type}</span>
+          <h1>{artifact.title}</h1>
+          <p>{artifact.prompt}</p>
+        </section>
+
+        <section className="decision artifact-decision">
+          <div className="decision__head">
+            <div>
+              <span>Choose the strongest artifact</span>
+              <h2>Which draft would you take into the work?</h2>
+            </div>
+            <button
+              className={cx("hint-button", hintShown && "is-used")}
+              onClick={onHint}
+              disabled={hintShown}
+            >
+              <span aria-hidden="true">✦</span> {hintShown ? "Hint shown" : "Show hint"}
+            </button>
+          </div>
+
+          {hintShown && (
+            <div className="hint-panel" aria-live="polite">
+              <b>Inspect the artifact, not the formatting</b>
+              <p>{artifact.hint}</p>
+            </div>
+          )}
+
+          <div className="options artifact-options">
+            {artifact.options.map((entry) => {
+              const isSelected = entry.id === selectedId;
+              return (
+                <button
+                  key={entry.id}
+                  className={cx(
+                    "option",
+                    "artifact-option",
+                    isSelected && "is-selected",
+                    selectedId && !isSelected && "is-muted",
+                  )}
+                  data-correct={entry.correct}
+                  onClick={() => onSelect(entry)}
+                  disabled={Boolean(selectedId)}
+                  aria-pressed={isSelected}
+                >
+                  <span>{entry.id}</span>
+                  <p>{entry.text}</p>
+                  {isSelected && <b aria-hidden="true">{entry.correct ? "✓" : "!"}</b>}
+                </button>
+              );
+            })}
+          </div>
+          {!selectedId && <p className="keyboard-note">Tip: press A, B, C, or D to choose</p>}
+        </section>
+
+        {selected && correct && (
+          <>
+            <section className="artifact-review" aria-live="polite">
+              <div className="artifact-review__result">
+                <span>Artifact review</span>
+                <h3>{selected.correct ? "Sound artifact judgment" : "A useful correction"}</h3>
+                <p>{selected.feedback}</p>
+              </div>
+              {!selected.correct && (
+                <div className="artifact-review__correct">
+                  <b>Strongest choice: {correct.id}</b>
+                  <p>{correct.text}</p>
+                  <small>{correct.feedback}</small>
+                </div>
+              )}
+            </section>
+
+            <section className="model-artifact">
+              <div className="model-artifact__head">
+                <div>
+                  <span>Model artifact</span>
+                  <h3>{artifact.model.title}</h3>
+                </div>
+                <b>Complete example</b>
+              </div>
+              <div className="model-artifact__sections">
+                {artifact.model.sections.map((section) => (
+                  <article key={section.label}>
+                    <span>{section.label}</span>
+                    <p>{section.content}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <div className="continue-row">
+              <p>
+                Your artifact judgment is saved.
+                <span>
+                  {" "}
+                  {stage.id === 18 ? "Next: final review" : `Next: ${STAGES[stage.id].title}`}
+                </span>
+              </p>
+              <button className="button button--primary" onClick={onContinue}>
+                {stage.id === 18 ? "See final outcome" : "Next stage"}{" "}
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function GameStage({
+  state,
+  onSelect,
+  onArtifactSelect,
+  onHint,
+  onContinue,
+  onOpenMenu,
+}: {
   state: ReturnType<typeof createInitialState>;
   onSelect: (option: (typeof STAGES)[number]["options"][number]) => void;
+  onArtifactSelect: (
+    option: (typeof STAGES)[number]["artifact"]["options"][number],
+  ) => void;
   onHint: () => void;
   onContinue: () => void;
   onOpenMenu: () => void;
@@ -337,6 +497,19 @@ function GameStage({
   const selectedId = state.selectedAnswers[stage.id];
   const selectedOption = stage.options.find((entry) => entry.id === selectedId);
   const hintShown = state.hintsUsed.includes(stage.id);
+
+  if (state.currentPart === "artifact") {
+    return (
+      <ArtifactLab
+        stage={stage}
+        state={state}
+        onSelect={onArtifactSelect}
+        onHint={onHint}
+        onContinue={onContinue}
+        onOpenMenu={onOpenMenu}
+      />
+    );
+  }
 
   return (
     <main className="game-main">
@@ -425,10 +598,10 @@ function GameStage({
             <div className="continue-row">
               <p>
                 Your progress is saved on this device.
-                <span> Next: {stage.id === 18 ? "final review" : STAGES[stage.id].title}</span>
+                <span> Next: artifact lab · {stage.artifact.type}</span>
               </p>
               <button className="button button--primary" onClick={onContinue}>
-                {stage.id === 18 ? "See final outcome" : "Continue"}{" "}
+                Continue to artifact exercise{" "}
                 <span aria-hidden="true">→</span>
               </button>
             </div>
@@ -481,6 +654,17 @@ function Debrief({
           <strong>{state.permanentChance}%</strong>
           <div className="chance-meter__track">
             <span style={{ width: `${state.permanentChance}%` }} />
+          </div>
+          <div className="artifact-score">
+            <span>Artifact judgment</span>
+            <strong>
+              {state.artifactCorrect}/{state.artifactAttempts}
+            </strong>
+            <small>
+              {state.artifactAttempts
+                ? `${Math.round((state.artifactCorrect / state.artifactAttempts) * 100)}% correct`
+                : "No attempts"}
+            </small>
           </div>
         </div>
         <CapabilityList capabilities={state.capabilities} detailed />
@@ -546,8 +730,8 @@ function DecisionReview({
       <header className="review__header">
         <div>
           <p className="eyebrow">Your decision record</p>
-          <h1>Review all 18 choices</h1>
-          <p>Revisit the consequence, manager feedback, and mental model from each stage.</p>
+          <h1>Review all 36 choices</h1>
+          <p>Revisit each workplace decision, artifact judgment, model artifact, and coaching note.</p>
         </div>
         <button className="button button--secondary" onClick={onBack}>
           ← Back to outcome
@@ -557,6 +741,9 @@ function DecisionReview({
         {STAGES.map((stage) => {
           const choice = stage.options.find(
             (entry) => entry.id === state.selectedAnswers[stage.id],
+          );
+          const artifactChoice = stage.artifact.options.find(
+            (entry) => entry.id === state.artifactAnswers[stage.id],
           );
           if (!choice) return null;
           return (
@@ -587,6 +774,26 @@ function DecisionReview({
                   </article>
                 </div>
                 <blockquote>{choice.feedback.mentalModel}</blockquote>
+                {artifactChoice && (
+                  <div className="review__artifact">
+                    <span>Artifact choice · {stage.artifact.type}</span>
+                    <p>
+                      <b>
+                        {artifactChoice.id} · {artifactChoice.correct ? "Correct" : "Needs revision"}
+                      </b>{" "}
+                      — {artifactChoice.text}
+                    </p>
+                    <p>{artifactChoice.feedback}</p>
+                    <div className="review__model">
+                      <b>Model artifact</b>
+                      {stage.artifact.model.sections.map((section) => (
+                        <p key={section.label}>
+                          <strong>{section.label}:</strong> {section.content}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </details>
           );
@@ -639,7 +846,10 @@ export function Game() {
   const [started, setStarted] = useState(false);
 
   const currentStage = STAGES[state.currentStage - 1];
-  const currentSelected = Boolean(state.selectedAnswers[state.currentStage]);
+  const currentSelected =
+    state.currentPart === "scenario"
+      ? Boolean(state.selectedAnswers[state.currentStage])
+      : Boolean(state.artifactAnswers[state.currentStage]);
 
   const subscribeToSavedRun = useCallback((listener: () => void) => {
     window.addEventListener(STORAGE_EVENT, listener);
@@ -667,15 +877,23 @@ export function Game() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (screen !== "game" || state.completed || currentSelected) return;
       const key = event.key.toUpperCase();
-      const selected = currentStage.options.find((entry) => entry.id === key);
+      const choices =
+        state.currentPart === "scenario"
+          ? currentStage.options
+          : currentStage.artifact.options;
+      const selected = choices.find((entry) => entry.id === key);
       if (selected) {
         event.preventDefault();
-        setState((current) => applyChoice(current, currentStage.id, selected));
+        setState((current) =>
+          state.currentPart === "scenario"
+            ? applyChoice(current, currentStage.id, selected)
+            : applyArtifactChoice(current, currentStage.id, selected),
+        );
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [screen, state.completed, currentSelected, currentStage]);
+  }, [screen, state.completed, state.currentPart, currentSelected, currentStage]);
 
   const startFresh = () => {
     if (hasSaved && !window.confirm("Start over and erase the saved run on this device?")) {
@@ -713,7 +931,11 @@ export function Game() {
   };
 
   const handleContinue = () => {
-    setState((current) => advanceStage(current, STAGES.length));
+    setState((current) =>
+      current.currentPart === "scenario"
+        ? advanceToArtifact(current)
+        : advanceStage(current, STAGES.length),
+    );
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -752,7 +974,21 @@ export function Game() {
         onSelect={(selected) =>
           setState((current) => applyChoice(current, currentStage.id, selected))
         }
-        onHint={() => setState((current) => markHintUsed(current, currentStage.id))}
+        onArtifactSelect={(selected) =>
+          setState((current) =>
+            applyArtifactChoice(current, currentStage.id, selected),
+          )
+        }
+        onHint={() =>
+          setState((current) =>
+            markHintUsed(
+              current,
+              current.currentPart === "scenario"
+                ? currentStage.id
+                : `artifact-${currentStage.id}`,
+            ),
+          )
+        }
         onContinue={handleContinue}
         onOpenMenu={() => setMobileMenuOpen(true)}
       />

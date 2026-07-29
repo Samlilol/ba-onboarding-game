@@ -31,7 +31,8 @@ test("server-renders the onboarding simulation introduction", async () => {
   const html = await response.text();
   assert.match(html, /<title>Contract to Core/);
   assert.match(html, /Your first year as an AI BA/i);
-  assert.match(html, /18 workplace decisions/i);
+  assert.match(html, /36 decisions/i);
+  assert.match(html, /18 artifact labs/i);
   assert.match(html, /Start first day/i);
   assert.match(html, /learning simulation/i);
   assert.match(html, /not an AIA employment forecast/i);
@@ -52,6 +53,10 @@ test("the product source includes accessible game, feedback, and persistence sta
   assert.match(game, /What you did well/);
   assert.match(game, /How to improve/);
   assert.match(game, /Manager feedback/);
+  assert.match(game, /Artifact lab/);
+  assert.match(game, /Artifact review/);
+  assert.match(game, /Model artifact/);
+  assert.match(game, /Artifact judgment/);
   assert.match(game, /Review decisions/);
   assert.match(game, /Start over/);
   assert.match(game, /event\.key\.toUpperCase/);
