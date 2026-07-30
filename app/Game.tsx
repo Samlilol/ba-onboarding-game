@@ -27,6 +27,22 @@ const CAPABILITY_META = {
 
 type Screen = "intro" | "game" | "review";
 type CapabilityKey = keyof typeof CAPABILITY_META;
+type ScoredOption = {
+  id: string;
+  chanceDelta: number;
+  capabilityDeltas: Partial<Record<CapabilityKey, number>>;
+  severeFlag?: string;
+  recoversFlag?: string;
+};
+type ArtifactOption = ScoredOption & {
+  text: string;
+  feedback: string;
+  correct: boolean;
+};
+type ArtifactSection = {
+  label: string;
+  content: string;
+};
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -334,15 +350,17 @@ function ArtifactLab({
 }: {
   stage: (typeof STAGES)[number];
   state: ReturnType<typeof createInitialState>;
-  onSelect: (option: (typeof STAGES)[number]["artifact"]["options"][number]) => void;
+  onSelect: (option: ArtifactOption) => void;
   onHint: () => void;
   onContinue: () => void;
   onOpenMenu: () => void;
 }) {
   const artifact = stage.artifact;
   const selectedId = state.artifactAnswers[stage.id];
-  const selected = artifact.options.find((entry) => entry.id === selectedId);
-  const correct = artifact.options.find((entry) => entry.correct);
+  const selected = artifact.options.find(
+    (entry: ArtifactOption) => entry.id === selectedId,
+  );
+  const correct = artifact.options.find((entry: ArtifactOption) => entry.correct);
   const hintKey = `artifact-${stage.id}`;
   const hintShown = state.hintsUsed.includes(hintKey);
 
@@ -395,7 +413,7 @@ function ArtifactLab({
           )}
 
           <div className="options artifact-options">
-            {artifact.options.map((entry) => {
+            {artifact.options.map((entry: ArtifactOption) => {
               const isSelected = entry.id === selectedId;
               return (
                 <button
@@ -447,7 +465,7 @@ function ArtifactLab({
                 <b>Complete example</b>
               </div>
               <div className="model-artifact__sections">
-                {artifact.model.sections.map((section) => (
+                {artifact.model.sections.map((section: ArtifactSection) => (
                   <article key={section.label}>
                     <span>{section.label}</span>
                     <p>{section.content}</p>
@@ -486,9 +504,7 @@ function GameStage({
 }: {
   state: ReturnType<typeof createInitialState>;
   onSelect: (option: (typeof STAGES)[number]["options"][number]) => void;
-  onArtifactSelect: (
-    option: (typeof STAGES)[number]["artifact"]["options"][number],
-  ) => void;
+  onArtifactSelect: (option: ArtifactOption) => void;
   onHint: () => void;
   onContinue: () => void;
   onOpenMenu: () => void;
@@ -743,7 +759,7 @@ function DecisionReview({
             (entry) => entry.id === state.selectedAnswers[stage.id],
           );
           const artifactChoice = stage.artifact.options.find(
-            (entry) => entry.id === state.artifactAnswers[stage.id],
+            (entry: ArtifactOption) => entry.id === state.artifactAnswers[stage.id],
           );
           if (!choice) return null;
           return (
@@ -786,7 +802,7 @@ function DecisionReview({
                     <p>{artifactChoice.feedback}</p>
                     <div className="review__model">
                       <b>Model artifact</b>
-                      {stage.artifact.model.sections.map((section) => (
+                      {stage.artifact.model.sections.map((section: ArtifactSection) => (
                         <p key={section.label}>
                           <strong>{section.label}:</strong> {section.content}
                         </p>
@@ -877,11 +893,11 @@ export function Game() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (screen !== "game" || state.completed || currentSelected) return;
       const key = event.key.toUpperCase();
-      const choices =
+      const choices: ScoredOption[] =
         state.currentPart === "scenario"
           ? currentStage.options
           : currentStage.artifact.options;
-      const selected = choices.find((entry) => entry.id === key);
+      const selected = choices.find((entry: ScoredOption) => entry.id === key);
       if (selected) {
         event.preventDefault();
         setState((current) =>
