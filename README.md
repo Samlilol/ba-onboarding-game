@@ -3,9 +3,13 @@
 An educational onboarding simulation for a junior contract AI Business Analyst
 joining an insurance automation team.
 
-The player completes 18 workplace scenarios, chooses A/B/C/D, receives tailored
-manager feedback, and builds six capability signals that influence a
-deterministic permanent-role outcome.
+The player completes 18 workplace scenarios and 18 artifact-judgment labs,
+chooses A/B/C/D, receives tailored manager coaching, and builds six capability
+signals that influence a deterministic permanent-role outcome.
+
+## Play
+
+[Open Contract to Core](https://samlilol.github.io/ba-onboarding-game/)
 
 ## Run locally
 
